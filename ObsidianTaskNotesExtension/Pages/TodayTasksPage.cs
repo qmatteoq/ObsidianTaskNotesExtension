@@ -36,8 +36,6 @@ internal sealed partial class TodayTasksPage : DynamicListPage
 
     public override IListItem[] GetItems()
     {
-        Debug.WriteLine($"[TodayTasksPage] GetItems called - tasks: {_tasks.Count}, error: '{_errorMessage ?? "(none)"}', search: '{_searchText}'");
-
         var items = new List<IListItem>();
 
         if (_errorMessage != null)
@@ -53,8 +51,8 @@ internal sealed partial class TodayTasksPage : DynamicListPage
         {
             items.Add(new ListItem(new NoOpCommand())
             {
-                Title = "No tasks for today",
-                Subtitle = "No open tasks are due or scheduled for today",
+                Title = "No tasks found",
+                Subtitle = "No tasks are due, scheduled, or overdue for today",
                 Icon = new IconInfo("\uE8E5")
             });
         }
@@ -76,9 +74,10 @@ internal sealed partial class TodayTasksPage : DynamicListPage
             else
             {
                 var taskItems = filteredTasks
-                    .OrderBy(t => t.IsOverdue ? 0 : 1)
-                    .ThenBy(t => t.IsDueToday ? 0 : 1)
-                    .ThenBy(t => t.Due ?? t.ScheduledDate ?? DateTime.MaxValue)
+                    .OrderBy(t => t.Completed ? 1 : 0)
+                    .ThenBy(t => t.Archived ? 1 : 0)
+                    .ThenBy(t => t.IsOverdue ? 0 : 1)
+                    .ThenBy(t => t.Due ?? DateTime.MaxValue)
                     .ThenBy(t => GetPrioritySortOrder(t.Priority))
                     .Select(task => CreateTaskListItem(task));
 
@@ -111,8 +110,8 @@ internal sealed partial class TodayTasksPage : DynamicListPage
         return new ListItem(toggleCommand)
         {
             Title = task.Title,
-            Subtitle = FormatTodaySubtitle(task),
-            Icon = GetPriorityIcon(task),
+            Subtitle = FormatSubtitle(task),
+            Icon = GetIcon(task),
             Tags = TagHelpers.CreateTaskTags(task),
             Details = TagHelpers.CreateTaskDetails(task),
             MoreCommands = [
@@ -128,52 +127,43 @@ internal sealed partial class TodayTasksPage : DynamicListPage
         };
     }
 
-    private static string FormatTodaySubtitle(TaskItem task)
+    private static string FormatSubtitle(TaskItem task)
     {
-        // Always surface overdue status first, even if the task is also scheduled or due today.
-        if (task.IsOverdue)
+        var status = task.Archived ? "Archived" : task.Completed ? "Completed" : "Active";
+
+        if (task.Due.HasValue)
         {
-            // Special-case: make it clear this overdue task is part of today's schedule.
-            if (task.IsScheduledToday)
+            var due = task.Due.Value;
+            if (!task.Completed && !task.Archived && task.IsOverdue)
             {
-                return "Overdue (scheduled today)";
+                var daysOverdue = (DateTime.Today - due.Date).Days;
+                return $"{status} · Overdue by {daysOverdue} day{(daysOverdue == 1 ? "" : "s")}";
             }
 
-            return "Overdue";
+            return $"{status} · Due: {due:MMM d}";
         }
 
-        if (task.IsDueToday && task.IsScheduledToday)
-        {
-            return "Due and scheduled today";
-        }
-
-        if (task.IsDueToday)
-        {
-            return "Due today";
-        }
-
-        if (task.IsScheduledToday)
-        {
-            return "Scheduled today";
-        }
-
-        // Fallback: under the TodayTasksPage filter, this path should not be hit.
-        return string.Empty;
+        return status;
     }
 
-    private static IconInfo GetPriorityIcon(TaskItem task)
+    private static IconInfo GetIcon(TaskItem task)
     {
-        var priority = task.Priority?.ToLowerInvariant() ?? "";
-
-        return priority switch
+        if (task.Archived)
         {
-            "1-urgent" or "urgent" or "1" => new IconInfo("\uE91B"),
-            "2-high" or "high" or "2" => new IconInfo("\uE91B"),
-            "3-medium" or "medium" or "3" => new IconInfo("\uE91B"),
-            "4-normal" or "normal" or "4" => new IconInfo("\uE91B"),
-            "5-low" or "low" or "5" => new IconInfo("\uE91B"),
-            _ => new IconInfo("\uE787")
-        };
+            return new IconInfo("\uE7B8");
+        }
+
+        if (task.Completed)
+        {
+            return new IconInfo("\uE73E");
+        }
+
+        if (task.IsOverdue)
+        {
+            return new IconInfo("\uE7BA");
+        }
+
+        return new IconInfo("\uE73A");
     }
 
     private static int GetPrioritySortOrder(string? priority)
@@ -193,21 +183,21 @@ internal sealed partial class TodayTasksPage : DynamicListPage
 
     private void RefreshTasks()
     {
+        // Set loading state immediately and notify UI to show spinner
         IsLoading = true;
         RaiseItemsChanged();
 
+        // Then start the async fetch
         FetchTasksAsync();
     }
 
     private async void FetchTasksAsync()
     {
-        Debug.WriteLine("[TodayTasksPage] FetchTasksAsync - Starting");
         _errorMessage = null;
 
         try
         {
             var (success, message) = await _apiClient.TestConnectionAsync();
-            Debug.WriteLine($"[TodayTasksPage] FetchTasksAsync - Connection test: success={success}, message='{message}'");
 
             if (!success)
             {
@@ -216,17 +206,14 @@ internal sealed partial class TodayTasksPage : DynamicListPage
             }
             else
             {
-                var tasks = await _apiClient.GetActiveTasksAsync();
-                _tasks = tasks
-                    .Where(task => !task.Completed && !task.Archived)
-                    .Where(task => task.IsDueToday || task.IsScheduledToday)
+                _tasks = (await _apiClient.GetAllTasksAsync())
+                    .Where(task => task.IsOverdue || task.IsDueToday || task.IsScheduledToday)
                     .ToList();
-                Debug.WriteLine($"[TodayTasksPage] FetchTasksAsync - Got {_tasks.Count} tasks for today");
+                Debug.WriteLine($"[TodayTasksPage] FetchTasksAsync - Got {_tasks.Count} tasks");
             }
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"[TodayTasksPage] FetchTasksAsync - Exception: {ex.GetType().Name}: {ex.Message}");
             _errorMessage = $"Error: {ex.Message}";
             _tasks = new List<TaskItem>();
         }
