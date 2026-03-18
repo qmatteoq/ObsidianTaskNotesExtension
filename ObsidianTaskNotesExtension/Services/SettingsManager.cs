@@ -14,6 +14,9 @@ public class ExtensionSettings
     public string ApiBaseUrl { get; set; } = "http://localhost:8080";
     public string AuthToken { get; set; } = string.Empty;
     public string VaultName { get; set; } = string.Empty;
+    public bool ShowTaskTagInDecorators { get; set; } = true;
+    public bool ShowCompletedTasksInTodayPage { get; set; } = true;
+    public bool StrikeThroughCompletedTaskTitles { get; set; }
 }
 
 public class SettingsManager
@@ -36,6 +39,9 @@ public class SettingsManager
     public string ApiBaseUrl => _settings.ApiBaseUrl;
     public string AuthToken => _settings.AuthToken;
     public string VaultName => _settings.VaultName;
+    public bool ShowTaskTagInDecorators => _settings.ShowTaskTagInDecorators;
+    public bool ShowCompletedTasksInTodayPage => _settings.ShowCompletedTasksInTodayPage;
+    public bool StrikeThroughCompletedTaskTitles => _settings.StrikeThroughCompletedTaskTitles;
 
     public ExtensionSettings GetSettings() => _settings;
 
@@ -75,6 +81,24 @@ public class SettingsManager
     public void UpdateVaultName(string vaultName)
     {
         _settings.VaultName = vaultName;
+        SaveSettings(_settings);
+    }
+
+    public void UpdateShowTaskTagInDecorators(bool showTaskTagInDecorators)
+    {
+        _settings.ShowTaskTagInDecorators = showTaskTagInDecorators;
+        SaveSettings(_settings);
+    }
+
+    public void UpdateShowCompletedTasksInTodayPage(bool showCompletedTasksInTodayPage)
+    {
+        _settings.ShowCompletedTasksInTodayPage = showCompletedTasksInTodayPage;
+        SaveSettings(_settings);
+    }
+
+    public void UpdateStrikeThroughCompletedTaskTitles(bool strikeThroughCompletedTaskTitles)
+    {
+        _settings.StrikeThroughCompletedTaskTitles = strikeThroughCompletedTaskTitles;
         SaveSettings(_settings);
     }
 

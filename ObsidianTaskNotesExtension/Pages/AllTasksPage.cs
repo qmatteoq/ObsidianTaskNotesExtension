@@ -18,13 +18,15 @@ namespace ObsidianTaskNotesExtension.Pages;
 internal sealed partial class AllTasksPage : DynamicListPage
 {
     private readonly TaskNotesApiClient _apiClient;
+    private readonly SettingsManager _settingsManager;
     private List<TaskItem> _tasks = new();
     private string? _errorMessage;
     private string _searchText = string.Empty;
 
-    public AllTasksPage(TaskNotesApiClient apiClient)
+    public AllTasksPage(TaskNotesApiClient apiClient, SettingsManager settingsManager)
     {
         _apiClient = apiClient;
+        _settingsManager = settingsManager;
 
         Icon = IconHelpers.FromRelativePath("Assets\\StoreLogo.png");
         Title = "All Obsidian Tasks";
@@ -98,6 +100,8 @@ internal sealed partial class AllTasksPage : DynamicListPage
 
     private ListItem CreateTaskListItem(TaskItem task)
     {
+        var shouldShowTaskTag = _settingsManager.ShowTaskTagInDecorators;
+        var shouldStrikeThroughCompletedTitles = _settingsManager.StrikeThroughCompletedTaskTitles;
         var toggleCommand = new ToggleTaskStatusCommand(task, _apiClient, RefreshTasks);
         var openCommand = new OpenInObsidianCommand(task, _apiClient);
         var archiveCommand = new ArchiveTaskCommand(task, _apiClient, RefreshTasks);
@@ -109,11 +113,11 @@ internal sealed partial class AllTasksPage : DynamicListPage
 
         return new ListItem(toggleCommand)
         {
-            Title = task.Title,
+            Title = TagHelpers.FormatTaskTitle(task, shouldStrikeThroughCompletedTitles),
             Subtitle = FormatSubtitle(task),
             Icon = GetIcon(task),
-            Tags = TagHelpers.CreateTaskTags(task),
-            Details = TagHelpers.CreateTaskDetails(task),
+            Tags = TagHelpers.CreateTaskTags(task, shouldShowTaskTag),
+            Details = TagHelpers.CreateTaskDetails(task, shouldStrikeThroughCompletedTitles),
             MoreCommands = [
                 new CommandContextItem(new EditTaskPage(task, _apiClient)),
                 new CommandContextItem(openCommand),

@@ -25,9 +25,9 @@ public partial class ObsidianTaskNotesExtensionCommandsProvider : CommandProvide
         _apiClient = new TaskNotesApiClient(_settingsManager);
 
         // Create pages
-        var tasksPage = new ObsidianTaskNotesExtensionPage(_apiClient);
-        var todayTasksPage = new TodayTasksPage(_apiClient);
-        var allTasksPage = new AllTasksPage(_apiClient);
+        var tasksPage = new ObsidianTaskNotesExtensionPage(_apiClient, _settingsManager);
+        var todayTasksPage = new TodayTasksPage(_apiClient, _settingsManager);
+        var allTasksPage = new AllTasksPage(_apiClient, _settingsManager);
         var createTaskPage = new CreateTaskPage(_apiClient);
         var statsPage = new StatsPage(_apiClient);
         var pomodoroPage = new PomodoroPage(_apiClient);

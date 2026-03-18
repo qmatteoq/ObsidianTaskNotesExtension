@@ -5,6 +5,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text;
 using Microsoft.CommandPalette.Extensions;
 using Microsoft.CommandPalette.Extensions.Toolkit;
 using ObsidianTaskNotesExtension.Models;
@@ -51,7 +52,7 @@ internal static class TagHelpers
   /// <summary>
   /// Creates all relevant tags for a task item (priority, due status, user tags, projects).
   /// </summary>
-  public static ITag[] CreateTaskTags(TaskItem task, int maxUserTags = 3)
+  public static ITag[] CreateTaskTags(TaskItem task, bool includeDefaultTaskTag = true, int maxUserTags = 3)
   {
     var tags = new List<ITag>();
 
@@ -79,15 +80,19 @@ internal static class TagHelpers
     // User-defined tags (limited)
     if (task.Tags is { Length: > 0 })
     {
-      var userTags = task.Tags.Take(maxUserTags).Select(CreateUserTag);
+      var visibleTags = includeDefaultTaskTag
+        ? task.Tags
+        : task.Tags.Where(tag => !tag.Equals("task", StringComparison.OrdinalIgnoreCase)).ToArray();
+
+      var userTags = visibleTags.Take(maxUserTags).Select(CreateUserTag);
       tags.AddRange(userTags);
 
-      if (task.Tags.Length > maxUserTags)
+      if (visibleTags.Length > maxUserTags)
       {
-        tags.Add(new Tag($"+{task.Tags.Length - maxUserTags}")
+        tags.Add(new Tag($"+{visibleTags.Length - maxUserTags}")
         {
           Icon = new IconInfo("\uE8EC"), // Tag icon
-          ToolTip = string.Join(", ", task.Tags.Skip(maxUserTags))
+          ToolTip = string.Join(", ", visibleTags.Skip(maxUserTags))
         });
       }
     }
@@ -109,6 +114,31 @@ internal static class TagHelpers
     }
 
     return tags.ToArray();
+  }
+
+  /// <summary>
+  /// Formats a task title with an optional strike-through effect for completed tasks.
+  /// </summary>
+  public static string FormatTaskTitle(TaskItem task, bool strikeThroughCompletedTaskTitles)
+  {
+    if (!strikeThroughCompletedTaskTitles || !task.Completed || string.IsNullOrEmpty(task.Title))
+    {
+      return task.Title;
+    }
+
+    var builder = new StringBuilder(task.Title.Length * 2);
+
+    foreach (var character in task.Title)
+    {
+      builder.Append(character);
+
+      if (!char.IsWhiteSpace(character))
+      {
+        builder.Append('\u0336');
+      }
+    }
+
+    return builder.ToString();
   }
 
   /// <summary>
@@ -347,7 +377,7 @@ internal static class TagHelpers
   /// <summary>
   /// Creates details metadata for a task.
   /// </summary>
-  public static IDetails CreateTaskDetails(TaskItem task)
+  public static IDetails CreateTaskDetails(TaskItem task, bool strikeThroughCompletedTaskTitles = false)
   {
     var metadata = new List<IDetailsElement>();
 
@@ -401,7 +431,7 @@ internal static class TagHelpers
 
     return new Details()
     {
-      Title = task.Title,
+      Title = FormatTaskTitle(task, strikeThroughCompletedTaskTitles),
       Body = FormatTaskBody(task),
       Metadata = metadata.ToArray()
     };

@@ -18,13 +18,15 @@ namespace ObsidianTaskNotesExtension.Pages;
 internal sealed partial class TodayTasksPage : DynamicListPage
 {
     private readonly TaskNotesApiClient _apiClient;
+    private readonly SettingsManager _settingsManager;
     private List<TaskItem> _tasks = new();
     private string? _errorMessage;
     private string _searchText = string.Empty;
 
-    public TodayTasksPage(TaskNotesApiClient apiClient)
+    public TodayTasksPage(TaskNotesApiClient apiClient, SettingsManager settingsManager)
     {
         _apiClient = apiClient;
+        _settingsManager = settingsManager;
 
         Icon = IconHelpers.FromRelativePath("Assets\\StoreLogo.png");
         Title = "Today's Obsidian Tasks";
@@ -58,9 +60,16 @@ internal sealed partial class TodayTasksPage : DynamicListPage
         }
         else
         {
-            var filteredTasks = string.IsNullOrWhiteSpace(_searchText)
-                ? _tasks
-                : _tasks.Where(t => t.Title.Contains(_searchText, StringComparison.OrdinalIgnoreCase)).ToList();
+            var filteredTasks = _tasks
+                .Where(task => _settingsManager.ShowCompletedTasksInTodayPage || !task.Completed)
+                .ToList();
+
+            if (!string.IsNullOrWhiteSpace(_searchText))
+            {
+                filteredTasks = filteredTasks
+                    .Where(t => t.Title.Contains(_searchText, StringComparison.OrdinalIgnoreCase))
+                    .ToList();
+            }
 
             if (filteredTasks.Count == 0 && !string.IsNullOrWhiteSpace(_searchText))
             {
@@ -98,6 +107,8 @@ internal sealed partial class TodayTasksPage : DynamicListPage
 
     private ListItem CreateTaskListItem(TaskItem task)
     {
+        var shouldShowTaskTag = _settingsManager.ShowTaskTagInDecorators;
+        var shouldStrikeThroughCompletedTitles = _settingsManager.StrikeThroughCompletedTaskTitles;
         var toggleCommand = new ToggleTaskStatusCommand(task, _apiClient, RefreshTasks);
         var openCommand = new OpenInObsidianCommand(task, _apiClient);
         var archiveCommand = new ArchiveTaskCommand(task, _apiClient, RefreshTasks);
@@ -109,11 +120,11 @@ internal sealed partial class TodayTasksPage : DynamicListPage
 
         return new ListItem(toggleCommand)
         {
-            Title = task.Title,
+            Title = TagHelpers.FormatTaskTitle(task, shouldStrikeThroughCompletedTitles),
             Subtitle = FormatSubtitle(task),
             Icon = GetIcon(task),
-            Tags = TagHelpers.CreateTaskTags(task),
-            Details = TagHelpers.CreateTaskDetails(task),
+            Tags = TagHelpers.CreateTaskTags(task, shouldShowTaskTag),
+            Details = TagHelpers.CreateTaskDetails(task, shouldStrikeThroughCompletedTitles),
             MoreCommands = [
                 new CommandContextItem(new EditTaskPage(task, _apiClient)),
                 new CommandContextItem(openCommand),
