@@ -76,7 +76,8 @@ internal sealed partial class TodayTasksPage : DynamicListPage
             else
             {
                 var taskItems = filteredTasks
-                    .OrderBy(t => t.IsDueToday ? 0 : 1)
+                    .OrderBy(t => t.IsOverdue ? 0 : 1)
+                    .ThenBy(t => t.IsDueToday ? 0 : 1)
                     .ThenBy(t => t.Due ?? t.ScheduledDate ?? DateTime.MaxValue)
                     .ThenBy(t => GetPrioritySortOrder(t.Priority))
                     .Select(task => CreateTaskListItem(task));
